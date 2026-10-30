@@ -2494,3 +2494,10 @@ func (bc *BlockChain) SetBlockValidatorAndProcessorForTesting(v Validator, p Pro
 func (bc *BlockChain) SetTrieFlushInterval(interval time.Duration) {
 	bc.flushInterval.Store(int64(interval))
 }
+
+// SetMaxReorgDepth limits how many canonical blocks a reorg may drop while the
+// head is recent (0 means no limit); see ForkChoice.SetMaxReorgDepth. Call it
+// before the chain starts importing blocks.
+func (bc *BlockChain) SetMaxReorgDepth(depth uint64) {
+	bc.forker.SetMaxReorgDepth(depth)
+}
