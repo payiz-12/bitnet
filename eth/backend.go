@@ -199,6 +199,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, err
 	}
 	eth.bloomIndexer.Start(eth.blockchain)
+	// Only dial discovered nodes that are on this chain.
+	eth.p2pServer.DiscoveryFilter = nodeFilter(eth.blockchain)
 
 	if config.TxPool.Journal != "" {
 		config.TxPool.Journal = stack.ResolvePath(config.TxPool.Journal)
@@ -537,4 +539,11 @@ func (s *Ethereum) Stop() error {
 	s.eventMux.Stop()
 
 	return nil
+}
+
+// nodeFilter keeps discovered nodes whose `eth` record carries a fork ID
+// compatible with this chain. It lives outside New, where the local `eth`
+// variable would hide the protocol package.
+func nodeFilter(chain *core.BlockChain) func(*enode.Node) bool {
+	return eth.NewNodeFilter(chain)
 }
