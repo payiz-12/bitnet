@@ -314,7 +314,7 @@ func (s *Ethereum) APIs() []rpc.API {
 			Service:   s.netRPCService,
 		}, {
 			Namespace: "bitnet",
-			Service:   NewBitnetAPI(s.blockchain),
+			Service:   NewBitnetAPI(s.blockchain, s.txPool),
 		},
 	}...)
 }
