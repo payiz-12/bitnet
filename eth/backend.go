@@ -199,6 +199,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, err
 	}
 	eth.bloomIndexer.Start(eth.blockchain)
+	eth.blockchain.SetMaxReorgDepth(config.MaxReorgDepth)
 	// Only dial discovered nodes that are on this chain.
 	eth.p2pServer.DiscoveryFilter = nodeFilter(eth.blockchain)
 

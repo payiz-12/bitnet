@@ -226,6 +226,12 @@ var (
 		Value:    ethconfig.Defaults.TxLookupLimit,
 		Category: flags.EthCategory,
 	}
+	MaxReorgDepthFlag = &cli.Uint64Flag{
+		Name:     "reorg.maxdepth",
+		Usage:    "Refuse chain reorganisations that drop more than this many blocks while the node is in sync (0 = no limit)",
+		Value:    ethconfig.Defaults.MaxReorgDepth,
+		Category: flags.EthCategory,
+	}
 	LightKDFFlag = &cli.BoolFlag{
 		Name:     "lightkdf",
 		Usage:    "Reduce key-derivation RAM & CPU usage at some expense of KDF strength",
@@ -1750,6 +1756,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	}
 	if ctx.IsSet(TxLookupLimitFlag.Name) {
 		cfg.TxLookupLimit = ctx.Uint64(TxLookupLimitFlag.Name)
+	}
+	if ctx.IsSet(MaxReorgDepthFlag.Name) {
+		cfg.MaxReorgDepth = ctx.Uint64(MaxReorgDepthFlag.Name)
 	}
 	if ctx.IsSet(CacheFlag.Name) || ctx.IsSet(CacheTrieFlag.Name) {
 		cfg.TrieCleanCache = ctx.Int(CacheFlag.Name) * ctx.Int(CacheTrieFlag.Name) / 100
