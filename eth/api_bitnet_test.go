@@ -22,8 +22,10 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -61,7 +63,7 @@ func newBitnetTestChain(t *testing.T) *core.BlockChain {
 }
 
 func TestBitnetMinerShares(t *testing.T) {
-	api := NewBitnetAPI(newBitnetTestChain(t))
+	api := NewBitnetAPI(newBitnetTestChain(t), nil)
 
 	res, err := api.MinerShares(nil)
 	if err != nil {
@@ -96,7 +98,7 @@ func TestBitnetMinerShares(t *testing.T) {
 }
 
 func TestBitnetConfirmations(t *testing.T) {
-	api := NewBitnetAPI(newBitnetTestChain(t))
+	api := NewBitnetAPI(newBitnetTestChain(t), nil)
 
 	res, err := api.Confirmations(nil, nil)
 	if err != nil {
@@ -122,5 +124,27 @@ func TestBitnetConfirmations(t *testing.T) {
 	}
 	if reorgs := api.Reorgs(); len(reorgs) != 0 {
 		t.Errorf("reorgs on a straight chain: %+v", reorgs)
+	}
+}
+
+func TestReplacedTransactionSamePayment(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	signer := types.LatestSigner(params.TestChainConfig)
+	merchant, other := common.Address{0x11}, common.Address{0x22}
+	tx := func(to common.Address, value, gasPrice int64) *types.Transaction {
+		return types.MustSignNewTx(key, signer, &types.LegacyTx{Nonce: 7, To: &to, Value: big.NewInt(value), Gas: 21000, GasPrice: big.NewInt(gasPrice)})
+	}
+	pay := tx(merchant, 100, 10)
+
+	speedUp := NewReplacedTransaction(txpool.ReplacedTxEvent{Old: pay, New: tx(merchant, 100, 20)}, signer)
+	if !speedUp.SamePayment || speedUp.From != crypto.PubkeyToAddress(key.PublicKey) || speedUp.Nonce != 7 {
+		t.Errorf("fee bump: %+v", speedUp)
+	}
+	redirect := NewReplacedTransaction(txpool.ReplacedTxEvent{Old: pay, New: tx(other, 100, 20)}, signer)
+	if redirect.SamePayment || *redirect.Old.To != merchant || *redirect.New.To != other {
+		t.Errorf("payment sent elsewhere: %+v", redirect)
+	}
+	if lower := NewReplacedTransaction(txpool.ReplacedTxEvent{Old: pay, New: tx(merchant, 1, 20)}, signer); lower.SamePayment {
+		t.Error("a smaller payment to the same address must not count as the same payment")
 	}
 }

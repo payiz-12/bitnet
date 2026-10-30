@@ -14,11 +14,17 @@
 package eth
 
 import (
+	"bytes"
+	"context"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/chainsecurity"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 const (
@@ -29,14 +35,15 @@ const (
 
 // BitnetAPI offers figures about the chain's security that are otherwise read
 // from explorers: who mines the blocks, how many confirmations a payment needs,
-// and the chain reorganisations this node saw.
+// the chain reorganisations this node saw, and transactions replaced in its pool.
 type BitnetAPI struct {
-	chain *core.BlockChain
+	chain  *core.BlockChain
+	txpool *txpool.TxPool
 }
 
 // NewBitnetAPI creates the API for the bitnet namespace.
-func NewBitnetAPI(chain *core.BlockChain) *BitnetAPI {
-	return &BitnetAPI{chain: chain}
+func NewBitnetAPI(chain *core.BlockChain, pool *txpool.TxPool) *BitnetAPI {
+	return &BitnetAPI{chain: chain, txpool: pool}
 }
 
 // MinerShares is the result of bitnet_minerShares.
@@ -177,4 +184,81 @@ func (api *BitnetAPI) ConfirmationsFor(share float64, risk *float64) (*Confirmat
 // --reorg.maxdepth, since it started; newest first.
 func (api *BitnetAPI) Reorgs() []core.ReorgRecord {
 	return api.chain.RecentReorgs()
+}
+
+// ReplacedTxInfo is one side of a replacement.
+type ReplacedTxInfo struct {
+	Hash     common.Hash     `json:"hash"`
+	To       *common.Address `json:"to"`
+	Value    *hexutil.Big    `json:"value"`
+	GasPrice *hexutil.Big    `json:"gasPrice"`
+}
+
+// ReplacedTransaction is what bitnet_subscribe("replacedTransactions") sends.
+type ReplacedTransaction struct {
+	From  common.Address `json:"from"`
+	Nonce hexutil.Uint64 `json:"nonce"`
+	Old   ReplacedTxInfo `json:"old"`
+	New   ReplacedTxInfo `json:"new"`
+	// SamePayment is true when the new transaction has the same recipient, value
+	// and data, as when a sender only raises the fee. When it is false, the old
+	// payment will not happen: the sender cancelled it or sent the coins elsewhere.
+	SamePayment bool `json:"samePayment"`
+}
+
+func replacedTxInfo(tx *types.Transaction) ReplacedTxInfo {
+	return ReplacedTxInfo{Hash: tx.Hash(), To: tx.To(), Value: (*hexutil.Big)(tx.Value()), GasPrice: (*hexutil.Big)(tx.GasPrice())}
+}
+
+func samePayment(a, b *types.Transaction) bool {
+	if (a.To() == nil) != (b.To() == nil) || (a.To() != nil && *a.To() != *b.To()) {
+		return false
+	}
+	return a.Value().Cmp(b.Value()) == 0 && bytes.Equal(a.Data(), b.Data())
+}
+
+// NewReplacedTransaction describes a replacement for subscribers.
+func NewReplacedTransaction(ev txpool.ReplacedTxEvent, signer types.Signer) *ReplacedTransaction {
+	from, _ := types.Sender(signer, ev.New) // already validated by the pool
+	return &ReplacedTransaction{
+		From:        from,
+		Nonce:       hexutil.Uint64(ev.New.Nonce()),
+		Old:         replacedTxInfo(ev.Old),
+		New:         replacedTxInfo(ev.New),
+		SamePayment: samePayment(ev.Old, ev.New),
+	}
+}
+
+// ReplacedTransactions notifies when a transaction in this node's pool is
+// replaced by another from the same sender with the same nonce. A merchant who
+// accepts payments before they are mined can watch for its own address as the
+// old recipient with samePayment false: that payment is being taken back.
+// Subscribe with bitnet_subscribe("replacedTransactions") over WebSocket or IPC.
+func (api *BitnetAPI) ReplacedTransactions(ctx context.Context) (*rpc.Subscription, error) {
+	notifier, supported := rpc.NotifierFromContext(ctx)
+	if !supported {
+		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
+	}
+	if api.txpool == nil {
+		return &rpc.Subscription{}, errors.New("this node has no transaction pool")
+	}
+	rpcSub := notifier.CreateSubscription()
+	signer := types.LatestSigner(api.chain.Config())
+
+	go func() {
+		events := make(chan txpool.ReplacedTxEvent, 128)
+		sub := api.txpool.SubscribeReplacedTxsEvent(events)
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case ev := <-events:
+				notifier.Notify(rpcSub.ID, NewReplacedTransaction(ev, signer))
+			case <-rpcSub.Err():
+				return
+			case <-notifier.Closed():
+				return
+			}
+		}
+	}()
+	return rpcSub, nil
 }
