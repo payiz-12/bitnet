@@ -698,6 +698,23 @@ var (
 		Value:    "",
 		Category: flags.APICategory,
 	}
+	BatchRequestLimitFlag = &cli.IntFlag{
+		Name:     "rpc.batch-request-limit",
+		Usage:    "Maximum number of calls in a JSON-RPC batch over HTTP or WebSocket (0 = no limit)",
+		Value:    node.DefaultConfig.BatchRequestLimit,
+		Category: flags.APICategory,
+	}
+	BatchResponseMaxSizeFlag = &cli.IntFlag{
+		Name:     "rpc.batch-response-max-size",
+		Usage:    "Maximum number of response bytes for a JSON-RPC batch over HTTP or WebSocket (0 = no limit)",
+		Value:    node.DefaultConfig.BatchResponseMaxSize,
+		Category: flags.APICategory,
+	}
+	AllowUnsafePublicRPCFlag = &cli.BoolFlag{
+		Name:     "rpc.allow-unsafe-public",
+		Usage:    "Allow the admin, debug, personal and miner APIs over HTTP or WebSocket on a non-local address (dangerous)",
+		Category: flags.APICategory,
+	}
 	HTTPPathPrefixFlag = &cli.StringFlag{
 		Name:     "http.rpcprefix",
 		Usage:    "HTTP path path prefix on which JSON-RPC is served. Use '/' to serve on all paths.",
@@ -1170,6 +1187,15 @@ func setHTTP(ctx *cli.Context, cfg *node.Config) {
 
 	if ctx.IsSet(HTTPPathPrefixFlag.Name) {
 		cfg.HTTPPathPrefix = ctx.String(HTTPPathPrefixFlag.Name)
+	}
+	if ctx.IsSet(BatchRequestLimitFlag.Name) {
+		cfg.BatchRequestLimit = ctx.Int(BatchRequestLimitFlag.Name)
+	}
+	if ctx.IsSet(BatchResponseMaxSizeFlag.Name) {
+		cfg.BatchResponseMaxSize = ctx.Int(BatchResponseMaxSizeFlag.Name)
+	}
+	if ctx.IsSet(AllowUnsafePublicRPCFlag.Name) {
+		cfg.AllowUnsafePublicRPC = ctx.Bool(AllowUnsafePublicRPCFlag.Name)
 	}
 	if ctx.IsSet(AllowUnprotectedTxs.Name) {
 		cfg.AllowUnprotectedTxs = ctx.Bool(AllowUnprotectedTxs.Name)
