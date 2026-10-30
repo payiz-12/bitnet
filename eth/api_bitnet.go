@@ -17,6 +17,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -37,13 +40,15 @@ const (
 // from explorers: who mines the blocks, how many confirmations a payment needs,
 // the chain reorganisations this node saw, and transactions replaced in its pool.
 type BitnetAPI struct {
-	chain  *core.BlockChain
-	txpool *txpool.TxPool
+	chain    *core.BlockChain
+	txpool   *txpool.TxPool
+	issuance *issuanceIndex
 }
 
-// NewBitnetAPI creates the API for the bitnet namespace.
-func NewBitnetAPI(chain *core.BlockChain, pool *txpool.TxPool) *BitnetAPI {
-	return &BitnetAPI{chain: chain, txpool: pool}
+// NewBitnetAPI creates the API for the bitnet namespace. The pool and the
+// supply index may be nil; the methods that need them then return an error.
+func NewBitnetAPI(chain *core.BlockChain, pool *txpool.TxPool, issuance *issuanceIndex) *BitnetAPI {
+	return &BitnetAPI{chain: chain, txpool: pool, issuance: issuance}
 }
 
 // MinerShares is the result of bitnet_minerShares.
@@ -261,4 +266,74 @@ func (api *BitnetAPI) ReplacedTransactions(ctx context.Context) (*rpc.Subscripti
 		}
 	}()
 	return rpcSub, nil
+}
+
+// burnAddresses hold coins nobody can spend.
+var burnAddresses = []common.Address{{}, common.HexToAddress("0x000000000000000000000000000000000000dEaD")}
+
+// maxSupplyScan is how many blocks past the nearest checkpoint bitnet_supply
+// reads; further than that, it asks the caller to wait for the index.
+const maxSupplyScan = 30000
+
+// Supply is the result of bitnet_supply. Amounts are exact decimals in BTN.
+type Supply struct {
+	Block       uint64       `json:"block"`
+	Hash        common.Hash  `json:"hash"`
+	Supply      string       `json:"supply"` // genesis allocation plus every block and uncle reward
+	SupplyWei   *hexutil.Big `json:"supplyWei"`
+	Uncles      uint64       `json:"uncles"`                // uncles included up to the block
+	Burned      string       `json:"burned,omitempty"`      // at 0x0 and 0x...dEaD, if the block's state is available
+	Circulating string       `json:"circulating,omitempty"` // supply minus burned
+}
+
+// formatBTN writes an amount in wei as an exact decimal in BTN.
+func formatBTN(wei *big.Int) string {
+	unit := big.NewInt(1e18)
+	whole, frac := new(big.Int).QuoRem(wei, unit, new(big.Int))
+	if frac.Sign() == 0 {
+		return whole.String()
+	}
+	digits := strings.TrimRight(fmt.Sprintf("%018s", frac.String()), "0")
+	return whole.String() + "." + digits
+}
+
+// Supply returns how many BTN exist after a block (the latest by default),
+// counted from the block rewards and uncle rewards of every block. Fees only
+// move coins, and genesis allocations are included. The node builds an index
+// in the background; until it is ready, blocks far from the start of the chain
+// return an error asking to retry.
+func (api *BitnetAPI) Supply(number *rpc.BlockNumber) (*Supply, error) {
+	if api.issuance == nil {
+		return nil, errors.New("this node keeps no supply index")
+	}
+	head := api.chain.CurrentBlock()
+	n := head.Number.Uint64()
+	if number != nil && *number >= 0 {
+		if uint64(*number) > n {
+			return nil, errors.New("block not found")
+		}
+		n = uint64(*number)
+	}
+	cp, err := api.issuance.supplyAt(n, maxSupplyScan)
+	if err != nil {
+		return nil, err
+	}
+	res := &Supply{
+		Block:     n,
+		Hash:      cp.Hash,
+		Supply:    formatBTN(cp.Supply),
+		SupplyWei: (*hexutil.Big)(cp.Supply),
+		Uncles:    cp.Uncles,
+	}
+	if header := api.chain.GetHeaderByNumber(n); header != nil {
+		if state, err := api.chain.StateAt(header.Root); err == nil {
+			burned := new(big.Int)
+			for _, addr := range burnAddresses {
+				burned.Add(burned, state.GetBalance(addr))
+			}
+			res.Burned = formatBTN(burned)
+			res.Circulating = formatBTN(new(big.Int).Sub(cp.Supply, burned))
+		}
+	}
+	return res, nil
 }
