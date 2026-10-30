@@ -1,0 +1,180 @@
+// Copyright 2026 The Bitnet community authors
+// This file is part of the Bitnet library.
+//
+// The Bitnet library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The Bitnet library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+
+package eth
+
+import (
+	"errors"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/internal/chainsecurity"
+)
+
+const (
+	defaultShareWindow = 1000  // blocks counted when no window is given
+	maxShareWindow     = 10000 // largest window a call may ask for
+	defaultRisk        = 0.001 // chance of reversal the confirmation advice aims below
+)
+
+// BitnetAPI offers figures about the chain's security that are otherwise read
+// from explorers: who mines the blocks, how many confirmations a payment needs,
+// and the chain reorganisations this node saw.
+type BitnetAPI struct {
+	chain *core.BlockChain
+}
+
+// NewBitnetAPI creates the API for the bitnet namespace.
+func NewBitnetAPI(chain *core.BlockChain) *BitnetAPI {
+	return &BitnetAPI{chain: chain}
+}
+
+// MinerShares is the result of bitnet_minerShares.
+type MinerShares struct {
+	FromBlock           uint64                `json:"fromBlock"`
+	ToBlock             uint64                `json:"toBlock"`
+	Blocks              uint64                `json:"blocks"`
+	Uncles              uint64                `json:"uncles"`       // uncles included by these blocks
+	AvgBlockTime        float64               `json:"avgBlockTime"` // seconds between blocks
+	Miners              []chainsecurity.Share `json:"miners"`       // largest first
+	NakamotoCoefficient int                   `json:"nakamotoCoefficient"`
+}
+
+// MinerShares counts who mined the newest blocks (1000 by default, at most
+// 10000) and how many miners together produce more than half of them.
+func (api *BitnetAPI) MinerShares(blocks *uint64) (*MinerShares, error) {
+	n := uint64(defaultShareWindow)
+	if blocks != nil {
+		n = *blocks
+	}
+	if n == 0 || n > maxShareWindow {
+		return nil, errors.New("blocks must be between 1 and 10000")
+	}
+	head := api.chain.CurrentBlock().Number.Uint64()
+	if head == 0 {
+		return nil, errors.New("no blocks after genesis yet")
+	}
+	if n > head {
+		n = head
+	}
+	res := &MinerShares{FromBlock: head - n + 1, ToBlock: head, Blocks: n}
+	miners := make([]common.Address, 0, n)
+	var first, last uint64
+	for num := res.FromBlock; num <= head; num++ {
+		block := api.chain.GetBlockByNumber(num)
+		if block == nil {
+			return nil, errors.New("block missing from the local chain")
+		}
+		miners = append(miners, block.Coinbase())
+		res.Uncles += uint64(len(block.Uncles()))
+		if num == res.FromBlock {
+			first = block.Time()
+		}
+		last = block.Time()
+	}
+	if n > 1 {
+		res.AvgBlockTime = float64(last-first) / float64(n-1)
+	}
+	res.Miners = chainsecurity.Shares(miners)
+	res.NakamotoCoefficient = chainsecurity.NakamotoCoefficient(res.Miners)
+	return res, nil
+}
+
+// ConfirmationAdvice is how many confirmations stop one attacker.
+type ConfirmationAdvice struct {
+	Address       *common.Address `json:"address,omitempty"`
+	Share         float64         `json:"share"`
+	Safe          bool            `json:"safe"` // false: no confirmation count is enough
+	Confirmations int             `json:"confirmations,omitempty"`
+	Minutes       float64         `json:"minutes,omitempty"` // at the window's average block time
+}
+
+// Confirmations is the result of bitnet_confirmations.
+type Confirmations struct {
+	FromBlock uint64             `json:"fromBlock"`
+	ToBlock   uint64             `json:"toBlock"`
+	Risk      float64            `json:"risk"`
+	Largest   ConfirmationAdvice `json:"largest"` // against the largest miner
+	Others    ConfirmationAdvice `json:"others"`  // against every other miner (the second largest)
+}
+
+func advice(share, risk, blockTime float64) ConfirmationAdvice {
+	a := ConfirmationAdvice{Share: share}
+	if z, ok := chainsecurity.Confirmations(share, risk); ok {
+		a.Safe, a.Confirmations, a.Minutes = true, z, float64(z)*blockTime/60
+	}
+	return a
+}
+
+func validRisk(risk *float64) (float64, error) {
+	if risk == nil {
+		return defaultRisk, nil
+	}
+	if *risk <= 0 || *risk >= 1 {
+		return 0, errors.New("risk must be between 0 and 1")
+	}
+	return *risk, nil
+}
+
+// Confirmations says how many blocks to wait so that the largest miner of the
+// newest blocks, and separately any other miner, has less than the given chance
+// (0.1% by default) of reversing a payment. Against a miner with half of the
+// hashrate or more no count is enough, and Safe is false.
+func (api *BitnetAPI) Confirmations(risk *float64, blocks *uint64) (*Confirmations, error) {
+	r, err := validRisk(risk)
+	if err != nil {
+		return nil, err
+	}
+	shares, err := api.MinerShares(blocks)
+	if err != nil {
+		return nil, err
+	}
+	res := &Confirmations{FromBlock: shares.FromBlock, ToBlock: shares.ToBlock, Risk: r}
+	if len(shares.Miners) > 0 {
+		top := shares.Miners[0]
+		res.Largest = advice(top.Share, r, shares.AvgBlockTime)
+		res.Largest.Address = &top.Address
+	}
+	if len(shares.Miners) > 1 {
+		second := shares.Miners[1]
+		res.Others = advice(second.Share, r, shares.AvgBlockTime)
+		res.Others.Address = &second.Address
+	} else {
+		res.Others = advice(0, r, shares.AvgBlockTime)
+	}
+	return res, nil
+}
+
+// ConfirmationsFor says how many blocks to wait against an attacker with the
+// given share of the hashrate (0 to 1).
+func (api *BitnetAPI) ConfirmationsFor(share float64, risk *float64) (*ConfirmationAdvice, error) {
+	if share < 0 || share > 1 {
+		return nil, errors.New("share must be between 0 and 1")
+	}
+	r, err := validRisk(risk)
+	if err != nil {
+		return nil, err
+	}
+	var blockTime float64
+	if shares, err := api.MinerShares(nil); err == nil {
+		blockTime = shares.AvgBlockTime
+	}
+	a := advice(share, r, blockTime)
+	return &a, nil
+}
+
+// Reorgs lists the chain reorganisations this node made, or refused under
+// --reorg.maxdepth, since it started; newest first.
+func (api *BitnetAPI) Reorgs() []core.ReorgRecord {
+	return api.chain.RecentReorgs()
+}
