@@ -76,3 +76,45 @@ func TestMaxReorgDepth(t *testing.T) {
 		chain.Stop()
 	}
 }
+
+func TestReorgJournal(t *testing.T) {
+	genesis := &Genesis{Config: params.TestChainConfig, BaseFee: big.NewInt(params.InitialBaseFee)}
+	genDb, canon, _ := GenerateChainWithGenesis(genesis, ethash.NewFaker(), 20, nil)
+	fork := func(forkAt, n int) []*types.Block {
+		blocks, _ := GenerateChain(genesis.Config, canon[forkAt-1], ethash.NewFaker(), genDb, n, func(i int, b *BlockGen) {
+			b.SetCoinbase(common.Address{0x01})
+		})
+		return blocks
+	}
+	inSync := time.Unix(int64(canon[len(canon)-1].Time())+60, 0)
+
+	// A reorg the node makes. The side chain takes over at height 21, the first
+	// height above the canonical head (Bitnet keeps the first-seen block at equal
+	// height), so it replaces blocks 16-20 with 16-21 and then simply grows.
+	chain, _ := NewBlockChain(rawdb.NewMemoryDatabase(), nil, genesis, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
+	defer chain.Stop()
+	chain.InsertChain(canon)
+	shallow := fork(15, 10)
+	chain.InsertChain(shallow)
+	got := chain.RecentReorgs()
+	if len(got) != 1 {
+		t.Fatalf("recorded %d reorgs, want 1", len(got))
+	}
+	if r := got[0]; r.Refused || r.ForkNumber != 15 || r.Dropped != 5 || r.Added != 6 ||
+		r.OldHead != canon[19].Hash() || r.NewHead != shallow[5].Hash() || r.NewMiner != (common.Address{0x01}) {
+		t.Errorf("unexpected record: %+v", r)
+	}
+
+	// A reorg the depth limit refuses.
+	limited, _ := NewBlockChain(rawdb.NewMemoryDatabase(), nil, genesis, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
+	defer limited.Stop()
+	limited.SetMaxReorgDepth(10)
+	limited.forker.now = func() time.Time { return inSync }
+	limited.InsertChain(canon)
+	deep := fork(5, 30)
+	limited.InsertChain(deep)
+	got = limited.RecentReorgs()
+	if len(got) == 0 || !got[0].Refused || got[0].Dropped <= 10 || got[0].OldHead != canon[19].Hash() {
+		t.Errorf("refused reorg not recorded: %+v", got)
+	}
+}

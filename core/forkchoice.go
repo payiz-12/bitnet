@@ -56,6 +56,7 @@ type ForkChoice struct {
 	// local head is recent; 0 means no limit. See SetMaxReorgDepth.
 	maxReorgDepth uint64
 	now           func() time.Time
+	onRefuse      func(current, extern *types.Header, depth uint64) // optional
 }
 
 // recentHead is how close to the wall clock the local head must be for the
@@ -109,6 +110,9 @@ func (f *ForkChoice) ReorgNeeded(current *types.Header, extern *types.Header) (b
 	if depth, ok := f.forkDepth(current, extern); ok && depth > f.maxReorgDepth {
 		log.Error("Refused deep chain reorganisation", "drop", depth, "limit", f.maxReorgDepth,
 			"head", current.Number, "headhash", current.Hash(), "new", extern.Number, "newhash", extern.Hash())
+		if f.onRefuse != nil {
+			f.onRefuse(current, extern, depth)
+		}
 		return false, nil
 	}
 	return true, nil
