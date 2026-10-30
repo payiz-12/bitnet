@@ -56,6 +56,10 @@ web3._extend({
 			name: 'reorgs',
 			getter: 'bitnet_reorgs'
 		}),
+		new web3._extend.Property({
+			name: 'supply',
+			getter: 'bitnet_supply'
+		}),
 	]
 });
 `

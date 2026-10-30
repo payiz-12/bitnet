@@ -63,7 +63,7 @@ func newBitnetTestChain(t *testing.T) *core.BlockChain {
 }
 
 func TestBitnetMinerShares(t *testing.T) {
-	api := NewBitnetAPI(newBitnetTestChain(t), nil)
+	api := NewBitnetAPI(newBitnetTestChain(t), nil, nil)
 
 	res, err := api.MinerShares(nil)
 	if err != nil {
@@ -98,7 +98,7 @@ func TestBitnetMinerShares(t *testing.T) {
 }
 
 func TestBitnetConfirmations(t *testing.T) {
-	api := NewBitnetAPI(newBitnetTestChain(t), nil)
+	api := NewBitnetAPI(newBitnetTestChain(t), nil, nil)
 
 	res, err := api.Confirmations(nil, nil)
 	if err != nil {
