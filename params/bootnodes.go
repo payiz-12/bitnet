@@ -90,8 +90,10 @@ const dnsPrefix = "enrtree://AKA3AM6LPBYEUDMVNU3BSVQJ5AD45Y7YPOHJLEF6W26QOE4VTUD
 func KnownDNSNetwork(genesis common.Hash, protocol string) string {
 	var net string
 	switch genesis {
-	case MainnetGenesisHash:
-		net = "mainnet"
+	// MainnetGenesisHash is the Bitnet genesis here, so it must not map to
+	// Ethereum's mainnet list: those nodes are on another chain and every
+	// dial to them is wasted. Bitnet has no DNS list; peers come from the
+	// bootnodes and discovery.
 	case RinkebyGenesisHash:
 		net = "rinkeby"
 	case GoerliGenesisHash:
