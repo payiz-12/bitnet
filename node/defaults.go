@@ -58,7 +58,7 @@ var DefaultConfig = Config{
 	BatchRequestLimit:    1000,
 	BatchResponseMaxSize: 25 * 1000 * 1000,
 	P2P: p2p.Config{
-		ListenAddr: ":30303",
+		ListenAddr: ":30210", // the port the Bitnet network uses
 		MaxPeers:   50,
 		NAT:        nat.Any(),
 	},

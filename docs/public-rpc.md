@@ -21,7 +21,7 @@ service.
 
 ```
 internet ──> 443/tcp  nginx (TLS, POST / only, rate limits) ──> 127.0.0.1:8545  bitnet
-internet <─> 30303/tcp+udp  bitnet p2p
+internet <─> 30210/tcp+udp  bitnet p2p
 ```
 
 The node listens for RPC on 127.0.0.1 only. nginx can run on the same machine;
@@ -119,13 +119,13 @@ bantime  = 3600
 ```bash
 ufw default deny incoming
 ufw allow 443/tcp
-ufw allow 30303/tcp
-ufw allow 30303/udp
+ufw allow 30210/tcp
+ufw allow 30210/udp
 ufw allow OpenSSH
 ufw enable
 ```
 
-Never open the node's RPC port (8545) itself. Opening UDP 30303 as well as TCP
+Never open the node's RPC port (8545) itself. Opening UDP 30210 as well as TCP
 lets other nodes find yours through discovery, so it can serve as a bootnode.
 
 ## A content delivery network in front
