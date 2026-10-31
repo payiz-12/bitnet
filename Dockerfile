@@ -39,9 +39,12 @@ COPY --from=builder /out/bitnet /bitnet
 FROM ${RUN_IMAGE}
 RUN useradd --system --create-home --home-dir /data --uid 10001 bitnet
 COPY --from=builder /out/bitnet /usr/local/bin/bitnet
+# The node configuration of the release packages (peers, peer limit, port); the
+# --datadir flag below takes precedence over its DataDir.
+COPY --from=builder /src/.nodeconfig /etc/bitnet/nodeconfig.toml
 USER bitnet
 VOLUME /data
 
-# 8545 HTTP-RPC, 8546 WebSocket-RPC, 30303 p2p (TCP and UDP).
-EXPOSE 8545 8546 30303 30303/udp
-ENTRYPOINT ["bitnet", "--datadir", "/data"]
+# 8545 HTTP-RPC, 8546 WebSocket-RPC, 30210 p2p (TCP and UDP).
+EXPOSE 8545 8546 30210 30210/udp
+ENTRYPOINT ["bitnet", "--config", "/etc/bitnet/nodeconfig.toml", "--datadir", "/data"]
