@@ -49,10 +49,12 @@ binaries when you need a guarantee.
 ## Running the image
 
 ```bash
-docker run -d --name bitnet -v bitnet-data:/data -p 30303:30303 -p 30303:30303/udp \
+docker run -d --name bitnet -v bitnet-data:/data -p 30210:30210 -p 30210:30210/udp \
   ghcr.io/<owner>/bitnet:v0.1.0
 ```
 
 The node keeps its data in the `/data` volume and runs as an unprivileged user.
+It starts with the same `.nodeconfig` as the release packages (port 30210 and
+the configured peers); flags after the image name are passed on to the node.
 Add `--http --http.addr 0.0.0.0` and publish port 8545 only if you need RPC
 from outside the container, and expose only the modules you need.
