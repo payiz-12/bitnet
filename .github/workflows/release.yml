@@ -77,10 +77,35 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: dist
           merge-multiple: true
+      - name: Packages
+        run: |
+          # One folder per platform, laid out like the official package, so an
+          # existing installation can switch by replacing the binary.
+          cd dist
+          for bin in bitnet-linux-amd64 bitnet-linux-arm64 bitnet-darwin-amd64 bitnet-darwin-arm64 bitnet-windows-amd64.exe; do
+            platform=${bin#bitnet-}
+            platform=${platform%.exe}
+            dir=bitnet-$GITHUB_REF_NAME-$platform
+            mkdir "$dir"
+            cp ../.nodeconfig ../packaging/.genesis ../license.md "$dir"/
+            cp ../docs/install.md "$dir"/INSTALL.md
+            if [[ $bin == *.exe ]]; then
+              cp "$bin" "$dir"/bitnet.exe
+              cp ../packaging/*.cmd "$dir"/
+              zip -qr "$dir".zip "$dir"
+            else
+              install -m 755 "$bin" "$dir"/bitnet
+              install -m 755 ../packaging/*.sh "$dir"/
+              tar -czf "$dir".tar.gz "$dir"
+            fi
+            rm -r "$dir"
+          done
+          ls -l
       - name: Draft release with checksums
         env:
           GH_TOKEN: ${{ github.token }}
@@ -89,8 +114,7 @@ jobs:
           sha256sum bitnet-* > SHA256SUMS
           cat SHA256SUMS
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft \
-            --title "$GITHUB_REF_NAME" \
-            --notes "Linux binaries are reproducible: see docs/reproducible-builds.md to rebuild one and compare it with SHA256SUMS." \
+            --title "$GITHUB_REF_NAME" --notes-file ../docs/release-notes.md \
             bitnet-* SHA256SUMS
 
   image:
