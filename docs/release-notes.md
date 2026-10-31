@@ -115,3 +115,5 @@ Enable them with `bitnet` in `--http.api`; the console has `bitnet.supply()`,
 - `bitnet_supply` matched the supply shown by the BitnetScan explorer.
 - One data folder was used by the official client, this build, the official
   client and this build again, with every head matching the main chain.
+- A new node started from a release package with its defaults (snap sync) was
+  in sync with the main chain after 43 minutes, without dropping a peer.

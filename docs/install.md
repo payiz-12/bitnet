@@ -79,10 +79,12 @@ The script registers the genesis block and starts the node, which keeps its
 data in `bitnet.db` next to the script. On macOS, if the system refuses to open
 a downloaded program, allow it with `xattr -d com.apple.quarantine bitnet`.
 
-A new node downloads and verifies the whole chain, about 8 million blocks and
-4 GB of data. This takes several hours; the speed depends mostly on how fast the
-peers serve blocks. The node finds its peers through the bootnodes, usually
-within seconds.
+The node finds its peers through the bootnodes, usually within seconds. A new
+node then downloads the current state and the chain's headers, blocks and
+receipts, about 8 million blocks and 4 GB (snap sync, the default). In a test on
+a home connection in October 2026 it was in sync after 43 minutes; the speed
+depends mostly on how fast the peers serve blocks. To execute every block from
+the genesis block instead, add `--syncmode full`; that takes several hours.
 
 Flags given to the start script are passed on to the node, for example
 `./Bitnet.sh --http` to turn on the local RPC server.
