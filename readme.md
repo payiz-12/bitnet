@@ -73,7 +73,8 @@ go run build/ci.go install ./cmd/bitnet
 ## Key Metrics
 
 - **Block Reward**: 1
-- **Uncle Reward**: 0.875 down to 0.25 by depth (1 to 6 blocks); see the [pool guide](docs/pool-operators.md)
+- **Uncle Reward**: 0.875 (1st), 0.75 (2nd), 0.25 (3rd)
+  (as paid by the client: 0.875 down to 0.25 BTN by depth, 1 to 6 blocks; see the [pool guide](docs/pool-operators.md))
 - **Pre-mined Coins**: None
 - **Total Supply**: ∞
 - **Consensus Mechanism**: Proof of Work
