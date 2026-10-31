@@ -142,7 +142,9 @@ of the network's hashrate: a recent laptop at about 0.5 MH/s against a network
 of about 46 GH/s finds a block every two to three weeks on average.
 
 Pools that reach their node's RPC from another machine with the `personal` or
-`miner` modules must add `--rpc.allow-unsafe-public`; see below.
+`miner` modules must add `--rpc.allow-unsafe-public`; see below. Pool operators
+find the chain parameters and node settings in
+[adding Bitnet to a mining pool](pool-operators.md).
 
 ## Docker
 

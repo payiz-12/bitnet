@@ -15,6 +15,7 @@ can switch in either direction.
 - [Installing or switching](docs/install.md)
 - [What changed](docs/release-notes.md)
 - [Running a public RPC endpoint](docs/public-rpc.md)
+- [Adding Bitnet to a mining pool](docs/pool-operators.md)
 - [Reproducible builds](docs/reproducible-builds.md)
 
 ## Important Notice For Version 0.0.5 Users
