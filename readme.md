@@ -18,35 +18,24 @@ can switch in either direction.
 - [Adding Bitnet to a mining pool](docs/pool-operators.md)
 - [Reproducible builds](docs/reproducible-builds.md)
 
-## Important Notice For Version 0.0.5 Users
+## Node Not Syncing?
 
-If you have any issues syncing with the network, please try the following steps:
+The usual reason is that the node finds no peers: none of the bootnodes in the
+official v0.0.5 code answers any more. This build has working bootnodes. Switch
+to it as described in the [install guide](docs/install.md); your `bitnet.db`
+folder keeps working, so there is no need to delete it and sync again.
 
-1. If you're executing the Bitnet binary directly and in a single step, try initializing the protocol genesis before starting the `bitnet` (or `bitnet.exe` on Windows) binary. You can do that by running the command below inside your Bitnet folder - it assumes you have downloaded the latest pre-build release:
+Start the node from its folder with `Bitnet.sh` (or `Bitnet.cmd` on Windows).
+The scripts register the genesis block before starting the node, as the official
+package does:
 
 ```bash
 ./bitnet --datadir bitnet.db init .genesis && ./bitnet --networkid 210 --config .nodeconfig
 ```
 
-or, if you're on Windows:
-
-```cmd
-.\bitnet --datadir bitnet.db init .genesis ; .\bitnet --networkid 210 --config .nodeconfig
-```
-
-2. Try deleting your existing database for a full resync with the network. You can use the command below to delete the `bitnet.db` folder:
-
-```bash
-rm -rf bitnet.db
-```
-
-or, if you're on Windows:
-
-```cmd
-rmdir /s /q bitnet.db
-```
-
-If after following the steps above you still cannot sync your node, please ask for help in one of our community channels. Most of our developers are more active on [Discord](https://discord.com/invite/dtw7rKQfRs) than in other social media platforms.
+If it still does not sync, ask in the community channels; the community is
+most active on [Discord](https://discord.com/invite/dtw7rKQfRs). Problems with
+this build can be reported in its [issues](https://github.com/payiz-12/bitnet/issues).
 
 ## Install Script
 
@@ -62,10 +51,10 @@ Replace `python` with `python3` if your system is version-sensitive.
 Should you wish to build Bitnet from source, ensure you have the following software:
 
 - [Python](https://www.python.org/downloads/)
-- [Golang 1.19+](https://go.dev/dl/) (installed by `install.py`)
+- [Go](https://go.dev/dl/) (installed by `install.py`); releases are built and tested with Go 1.27.3
 - [GCC](https://gcc.gnu.org/releases.html) (installed by `install.py`)
 
-> **Note**: If either of these components is missing or corrupt, the build will fail. For a pre-built version with binaries compatible with your operating system, visit our [Releases Page](https://github.com/BitnetMoney/bitnet/releases/).
+> **Note**: If either of these components is missing or corrupt, the build will fail. For a pre-built version with binaries compatible with your operating system, visit the [Releases Page](https://github.com/payiz-12/bitnet/releases).
 
 ---
 
@@ -84,7 +73,7 @@ go run build/ci.go install ./cmd/bitnet
 ## Key Metrics
 
 - **Block Reward**: 1
-- **Uncle Reward**: 0.875 (1st), 0.75 (2nd), 0.25 (3rd)
+- **Uncle Reward**: 0.875 down to 0.25 by depth (1 to 6 blocks); see the [pool guide](docs/pool-operators.md)
 - **Pre-mined Coins**: None
 - **Total Supply**: ∞
 - **Consensus Mechanism**: Proof of Work
