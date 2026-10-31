@@ -4,6 +4,19 @@ Bitnet combines the decentralization of Bitcoin with the programmability of Ethe
 
 > **Insight**: *The only way forward is through decentralization.*
 
+## Community Build
+
+This branch is an independent, community-maintained build of the Bitnet node:
+the official v0.0.5 code with security fixes, working bootnodes and other
+improvements. It follows the same consensus rules as the official client and
+uses the same data folder, so the two run side by side on the network and you
+can switch in either direction.
+
+- [Installing or switching](docs/install.md)
+- [What changed](docs/release-notes.md)
+- [Running a public RPC endpoint](docs/public-rpc.md)
+- [Reproducible builds](docs/reproducible-builds.md)
+
 ## Important Notice For Version 0.0.5 Users
 
 If you have any issues syncing with the network, please try the following steps:
