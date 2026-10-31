@@ -1,6 +1,9 @@
 # Bitnet community build: release notes
 
-## First release
+## v0.1.0-beta.1
+
+The first release, published as a beta: if it runs for a week without
+problems, the same code becomes v0.1.0.
 
 An independent build of the Bitnet node, based on the official v0.0.5 code
 (commit b929d15, which reports itself as 0.0.4-stable). The consensus rules are
